@@ -54,6 +54,8 @@
             font-size: 16px;
             cursor: pointer;
             transition: transform 0.2s;
+            margin-right: 10px;
+            margin-bottom: 10px;
         }
         button:hover {
             transform: translateY(-2px);
@@ -113,6 +115,7 @@
         </div>
         
         <button onclick="getRevenue()" id="searchBtn">Get Revenue</button>
+        <button onclick="getCostOfRevenue()" id="costBtn">Get Cost of Revenue</button>
         
         <div id="result"></div>
         
@@ -172,7 +175,17 @@
                         `;
                         
                         // Add to history
-                        addToHistory(ticker, formattedRevenue, fiscalDate);
+        function addToHistory(ticker, revenue, date) {
+            const historyItem = { ticker, revenue, date, timestamp: new Date(), type: 'revenue' };
+            searchHistory.unshift(historyItem);
+            
+            // Keep only last 5 searches
+            if (searchHistory.length > 5) {
+                searchHistory = searchHistory.slice(0, 5);
+            }
+            
+            updateHistoryDisplay();
+        }
                     } else {
                         resultDiv.innerHTML = '<div class="result error">Revenue data not found for this ticker</div>';
                     }
@@ -187,8 +200,70 @@
             }
         }
         
-        function addToHistory(ticker, revenue, date) {
-            const historyItem = { ticker, revenue, date, timestamp: new Date() };
+        async function getCostOfRevenue() {
+            const ticker = document.getElementById('ticker').value.trim().toUpperCase();
+            const resultDiv = document.getElementById('result');
+            const costBtn = document.getElementById('costBtn');
+            
+            if (!ticker) {
+                resultDiv.innerHTML = '<div class="result error">Please enter a ticker symbol</div>';
+                return;
+            }
+            
+            // Show loading state
+            resultDiv.innerHTML = '<div class="result loading">Loading cost of revenue data...</div>';
+            costBtn.disabled = true;
+            costBtn.textContent = 'Loading...';
+            
+            const apiKey = 'KghKc0xlCvfLkxdV2NqiD0XpLeHkvi4l';
+            const apiUrl = `https://financialmodelingprep.com/api/v3/income-statement/${ticker}?period=annual&apikey=${apiKey}`;
+            // Use CORS proxy to avoid browser restrictions
+            const url = `https://api.allorigins.win/get?url=${encodeURIComponent(apiUrl)}`;
+            
+            try {
+                const response = await fetch(url);
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP Error: ${response.status}`);
+                }
+                
+                const proxyData = await response.json();
+                const data = JSON.parse(proxyData.contents);
+                
+                if (data && Array.isArray(data) && data.length > 0) {
+                    const latestYear = data[0];
+                    const costOfRevenue = latestYear.costOfRevenue;
+                    const fiscalDate = latestYear.date;
+                    
+                    if (costOfRevenue !== null && costOfRevenue !== undefined) {
+                        const formattedCost = costOfRevenue.toLocaleString();
+                        const resultText = `${ticker} Cost of Revenue for fiscal year ending ${fiscalDate}: ${formattedCost}`;
+                        
+                        resultDiv.innerHTML = `
+                            <div class="result success">
+                                ${resultText}
+                                <button class="copy-btn" onclick="copyToClipboard('${formattedCost}')">Copy Cost</button>
+                            </div>
+                        `;
+                        
+                        // Add to history
+                        addToHistory(ticker, formattedRevenue, fiscalDate);
+                    } else {
+                        resultDiv.innerHTML = '<div class="result error">Cost of Revenue data not found for this ticker</div>';
+                    }
+                } else {
+                    resultDiv.innerHTML = '<div class="result error">No data returned for this ticker</div>';
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `<div class="result error">Error: ${error.message}</div>`;
+            } finally {
+                costBtn.disabled = false;
+                costBtn.textContent = 'Get Cost of Revenue';
+            }
+        }
+        
+        function addToCostHistory(ticker, cost, date) {
+            const historyItem = { ticker, cost, date, timestamp: new Date(), type: 'cost' };
             searchHistory.unshift(historyItem);
             
             // Keep only last 5 searches
@@ -205,12 +280,14 @@
             
             if (searchHistory.length > 0) {
                 historyDiv.style.display = 'block';
-                historyList.innerHTML = searchHistory.map(item => 
-                    `<div class="history-item">
-                        <strong>${item.ticker}</strong>: $${item.revenue} (${item.date})
-                        <button class="copy-btn" onclick="copyToClipboard('${item.revenue}')">Copy</button>
-                    </div>`
-                ).join('');
+                historyList.innerHTML = searchHistory.map(item => {
+                    const label = item.type === 'cost' ? 'Cost of Revenue' : 'Revenue';
+                    const value = item.type === 'cost' ? item.cost : item.revenue;
+                    return `<div class="history-item">
+                        <strong>${item.ticker}</strong> ${label}: ${value} (${item.date})
+                        <button class="copy-btn" onclick="copyToClipboard('${value}')">Copy</button>
+                    </div>`;
+                }).join('');
             }
         }
         
