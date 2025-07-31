@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Company Revenue Lookup</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 15px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .input-group {
+            margin-bottom: 20px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+            color: #555;
+        }
+        input[type="text"] {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            font-size: 16px;
+            transition: border-color 0.3s;
+        }
+        input[type="text"]:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        button {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 12px 30px;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+        button:hover {
+            transform: translateY(-2px);
+        }
+        button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+        .result {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 8px;
+            font-size: 18px;
+            font-weight: bold;
+        }
+        .success {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .error {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        .loading {
+            background-color: #fff3cd;
+            color: #856404;
+            border: 1px solid #ffeaa7;
+        }
+        .history {
+            margin-top: 30px;
+        }
+        .history-item {
+            padding: 10px;
+            margin-bottom: 10px;
+            background-color: #f8f9fa;
+            border-radius: 5px;
+            border-left: 4px solid #667eea;
+        }
+        .copy-btn {
+            background: #28a745;
+            font-size: 12px;
+            padding: 5px 10px;
+            margin-left: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🏢 Company Revenue Lookup</h1>
+        
+        <div class="input-group">
+            <label for="ticker">Enter Stock Ticker Symbol:</label>
+            <input type="text" id="ticker" placeholder="e.g., AAPL, GOOGL, MSFT" />
+        </div>
+        
+        <button onclick="getRevenue()" id="searchBtn">Get Revenue</button>
+        
+        <div id="result"></div>
+        
+        <div class="history" id="history" style="display: none;">
+            <h3>Recent Lookups:</h3>
+            <div id="historyList"></div>
+        </div>
+    </div>
+
+    <script>
+        let searchHistory = [];
+        
+        async function getRevenue() {
+            const ticker = document.getElementById('ticker').value.trim().toUpperCase();
+            const resultDiv = document.getElementById('result');
+            const searchBtn = document.getElementById('searchBtn');
+            
+            if (!ticker) {
+                resultDiv.innerHTML = '<div class="result error">Please enter a ticker symbol</div>';
+                return;
+            }
+            
+            // Show loading state
+            resultDiv.innerHTML = '<div class="result loading">Loading revenue data...</div>';
+            searchBtn.disabled = true;
+            searchBtn.textContent = 'Loading...';
+            
+            const apiKey = 'KghKc0xlCvfLkxdV2NqiD0XpLeHkvi4l';
+            const url = `https://financialmodelingprep.com/api/v3/income-statement/${ticker}?period=annual&apikey=${apiKey}`;
+            
+            try {
+                const response = await fetch(url);
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP Error: ${response.status}`);
+                }
+                
+                const data = await response.json();
+                
+                if (data && Array.isArray(data) && data.length > 0) {
+                    const latestYear = data[0];
+                    const revenue = latestYear.revenue;
+                    const fiscalDate = latestYear.date;
+                    
+                    if (revenue !== null && revenue !== undefined) {
+                        const formattedRevenue = revenue.toLocaleString();
+                        const resultText = `${ticker} Revenue for fiscal year ending ${fiscalDate}: $${formattedRevenue}`;
+                        
+                        resultDiv.innerHTML = `
+                            <div class="result success">
+                                ${resultText}
+                                <button class="copy-btn" onclick="copyToClipboard('${formattedRevenue}')">Copy Revenue</button>
+                            </div>
+                        `;
+                        
+                        // Add to history
+                        addToHistory(ticker, formattedRevenue, fiscalDate);
+                    } else {
+                        resultDiv.innerHTML = '<div class="result error">Revenue data not found for this ticker</div>';
+                    }
+                } else {
+                    resultDiv.innerHTML = '<div class="result error">No data returned for this ticker</div>';
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `<div class="result error">Error: ${error.message}</div>`;
+            } finally {
+                searchBtn.disabled = false;
+                searchBtn.textContent = 'Get Revenue';
+            }
+        }
+        
+        function addToHistory(ticker, revenue, date) {
+            const historyItem = { ticker, revenue, date, timestamp: new Date() };
+            searchHistory.unshift(historyItem);
+            
+            // Keep only last 5 searches
+            if (searchHistory.length > 5) {
+                searchHistory = searchHistory.slice(0, 5);
+            }
+            
+            updateHistoryDisplay();
+        }
+        
+        function updateHistoryDisplay() {
+            const historyDiv = document.getElementById('history');
+            const historyList = document.getElementById('historyList');
+            
+            if (searchHistory.length > 0) {
+                historyDiv.style.display = 'block';
+                historyList.innerHTML = searchHistory.map(item => 
+                    `<div class="history-item">
+                        <strong>${item.ticker}</strong>: $${item.revenue} (${item.date})
+                        <button class="copy-btn" onclick="copyToClipboard('${item.revenue}')">Copy</button>
+                    </div>`
+                ).join('');
+            }
+        }
+        
+        function copyToClipboard(text) {
+            navigator.clipboard.writeText(text).then(() => {
+                // Could add a toast notification here
+                console.log('Copied to clipboard');
+            });
+        }
+        
+        // Allow Enter key to trigger search
+        document.getElementById('ticker').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                getRevenue();
+            }
+        });
+    </script>
+</body>
+</html>
