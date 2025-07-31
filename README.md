@@ -1,2 +1,2 @@
-# revenue_lookup
-Find financial information of public companies
+# Revenue Lookup
+Find basic financial information for publicly traded companies
